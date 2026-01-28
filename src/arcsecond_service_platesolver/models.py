@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 class PlateSolveRequest(BaseModel):
     peaks_xy: List[List[float]] = Field(..., description="List of [x, y] star centroids in pixel coordinates.")
     scales: Optional[List[int]] = Field(default=[6], description="Astrometry index scales to use (e.g. [6]).")
-    cache_dir: Optional[str] = Field(default=None, description="Override solver cache dir (index files).")
 
     # Optional hints (add when you want)
     ra_deg: Optional[float] = None

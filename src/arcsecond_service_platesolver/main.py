@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 import uvicorn
@@ -8,16 +9,25 @@ from fastapi import FastAPI
 from .models import PlateSolveRequest, PlateSolveResponse
 from .solver import AstrometryServiceSolver
 
+log = logging.getLogger("arcsecond.platesolver")
+
 app = FastAPI(title="Arcsecond Plate Solver (Astrometry)", version="0.1.0")
 
 # Single long-lived solver instance (solve is thread-safe).
 _SOLVER: AstrometryServiceSolver | None = None
 
 
+def _resolve_cache_dir() -> str:
+    data_root = os.environ.get("ASTROMETRY_DATA_ROOT", "/data")
+    cache_dir = os.path.join(data_root, "astrometry_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
 def _get_solver(req: PlateSolveRequest) -> AstrometryServiceSolver:
     global _SOLVER
 
-    cache_dir = req.cache_dir or os.environ.get("ASTROMETRY_CACHE_DIR", "/data/astrometry")
+    cache_dir = _resolve_cache_dir()
     scales = set(req.scales or [6])
 
     if _SOLVER is None or _SOLVER.cache_dir != cache_dir or _SOLVER.scales != scales:
@@ -26,6 +36,12 @@ def _get_solver(req: PlateSolveRequest) -> AstrometryServiceSolver:
         _SOLVER = AstrometryServiceSolver(cache_dir=cache_dir, scales=scales)
 
     return _SOLVER
+
+
+@app.on_event("startup")
+def _startup():
+    cache_dir = _resolve_cache_dir()
+    log.info("Astrometry cache dir: %s", cache_dir)
 
 
 @app.get("/health")
