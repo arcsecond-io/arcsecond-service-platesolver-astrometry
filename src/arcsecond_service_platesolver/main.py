@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI
@@ -10,8 +12,6 @@ from .models import PlateSolveRequest, PlateSolveResponse
 from .solver import AstrometryServiceSolver
 
 log = logging.getLogger("arcsecond.platesolver")
-
-app = FastAPI(title="Arcsecond Plate Solver (Astrometry)", version="0.1.0")
 
 # Single long-lived solver instance (solve is thread-safe).
 _SOLVER: AstrometryServiceSolver | None = None
@@ -22,6 +22,28 @@ def _resolve_cache_dir() -> str:
     cache_dir = os.path.join(data_root, "astrometry_cache")
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    cache_dir = _resolve_cache_dir()
+    log.info("Astrometry cache dir: %s", cache_dir)
+
+    try:
+        yield
+    finally:
+        global _SOLVER
+        if _SOLVER is not None:
+            _SOLVER.close()
+            _SOLVER = None
+
+
+app = FastAPI(title="Arcsecond Plate Solver (Astrometry)", version="0.1.0", lifespan=_lifespan)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
 
 
 def _get_solver(req: PlateSolveRequest) -> AstrometryServiceSolver:
@@ -36,17 +58,6 @@ def _get_solver(req: PlateSolveRequest) -> AstrometryServiceSolver:
         _SOLVER = AstrometryServiceSolver(cache_dir=cache_dir, scales=scales)
 
     return _SOLVER
-
-
-@app.on_event("startup")
-def _startup():
-    cache_dir = _resolve_cache_dir()
-    log.info("Astrometry cache dir: %s", cache_dir)
-
-
-@app.get("/health")
-def health():
-    return {"ok": True}
 
 
 @app.post("/platesolve", response_model=PlateSolveResponse)
