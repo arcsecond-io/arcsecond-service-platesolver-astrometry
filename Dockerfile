@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -26,6 +26,19 @@ COPY src/ /app/src/
 
 # Install plate solver service
 RUN uv pip install --system .
+
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    ASTROMETRY_CACHE_DIR=/data/astrometry
+
+WORKDIR /app
+
+# Copy only runtime artifacts from the builder.
+COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app/src /app/src
 
 EXPOSE 8080
 
