@@ -1,0 +1,25 @@
+[project]
+name = "arcsecond-service-platesolver-astrometry"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.6",
+    "numpy>=2.2",
+    "astropy>=7.2",
+    "astrometry>=4.3.0",
+]
+
+[project.scripts]
+arcsecond-platesolver = "arcsecond_service_platesolver.main:run"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/arcsecond_service_platesolver"]
