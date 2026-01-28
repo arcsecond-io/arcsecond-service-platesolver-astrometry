@@ -40,6 +40,6 @@ COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app/src /app/src
 
-EXPOSE 8080
+EXPOSE 8900
 
 CMD ["python", "-m", "arcsecond_service_platesolver.main"]
