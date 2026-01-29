@@ -20,7 +20,7 @@ COPY pyproject.toml /app/pyproject.toml
 COPY uv.lock /app/uv.lock
 
 # Install deps
-RUN uv pip install --system -r pyproject.toml
+RUN uv pip install --system -v -r pyproject.toml
 
 COPY src/ /app/src/
 
