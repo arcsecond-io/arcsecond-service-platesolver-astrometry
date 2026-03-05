@@ -1,6 +1,12 @@
 [project]
 name = "arcsecond-service-platesolver-astrometry"
 version = "0.1.0"
+description = "Arcsecond plate solver based on astrometry.net indexes"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Arcsecond" },
+]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
@@ -13,6 +19,10 @@ dependencies = [
 
 [project.scripts]
 arcsecond-platesolver = "arcsecond_service_platesolver.main:run"
+
+[project.urls]
+Homepage = "https://github.com/arcsecond-io/arcsecond-service-platesolver-astrometry"
+Issues = "https://github.com/arcsecond-io/arcsecond-service-platesolver-astrometry/issues"
 
 [tool.uv]
 package = true
