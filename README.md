@@ -1,6 +1,8 @@
 # Arcsecond Service: Platesolver (astrometry)
 
-This repository provides a FastAPI plate-solving service for Arcsecond, based on [astrometry.net](https://astrometry.net) indexes and Neuromorphics Systems' [astrometry](https://github.com/neuromorphicsystems/astrometry) Python package.
+This repository provides a FastAPI plate-solving service for Arcsecond, based
+on [astrometry.net](https://astrometry.net) indexes and Neuromorphics
+Systems' [astrometry](https://github.com/neuromorphicsystems/astrometry) Python package.
 
 ## Run with Docker
 
@@ -45,7 +47,9 @@ python -m arcsecond_service_platesolver.main
 - `LOG_LEVEL`: Uvicorn log level (default `info`).
 
 Default cache path behavior:
+
 - If `ASTROMETRY_CACHE_DIR` is set, it is used directly.
 - On Windows, defaults to `%LOCALAPPDATA%\Arcsecond\astrometry_cache` (or `%APPDATA%` fallback).
-- On Unix-like systems, prefers `/data/astrometry_cache` when writable, otherwise falls back to `$XDG_CACHE_HOME/arcsecond/astrometry_cache` or `~/.cache/arcsecond/astrometry_cache`.
+- On Unix-like systems, prefers `/data/astrometry_cache` when writable, otherwise falls back to
+  `$XDG_CACHE_HOME/arcsecond/astrometry_cache` or `~/.cache/arcsecond/astrometry_cache`.
 - If the selected location is not writable, falls back to the OS temp directory.
