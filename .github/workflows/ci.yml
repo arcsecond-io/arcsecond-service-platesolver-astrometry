@@ -29,9 +29,6 @@ jobs:
 
       - name: Install project (Windows)
         if: runner.os == 'Windows'
-        env:
-          CL: /I${{ github.workspace }}\compat\windows\include /FI${{ github.workspace }}\compat\windows\include\astrometry_msvc_compat.h
-          CFLAGS: /I${{ github.workspace }}\compat\windows\include /FI${{ github.workspace }}\compat\windows\include\astrometry_msvc_compat.h
         run: python -m pip install .
 
       - name: Install project (non-Windows)
