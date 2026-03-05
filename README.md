@@ -31,7 +31,7 @@ python -m arcsecond_service_platesolver.main
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
-$env:CL="/I$PWD\compat\windows\include $env:CL"
+$env:CL="/I$PWD\compat\windows\include /FI$PWD\compat\windows\include\astrometry_msvc_compat.h $env:CL"
 python -m pip install --upgrade pip
 python -m pip install .
 python -m arcsecond_service_platesolver.main
