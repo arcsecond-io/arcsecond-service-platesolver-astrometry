@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2.6",
     "numpy>=2.2",
     "astropy>=7.2",
-    "astrometry @ git+https://github.com/arcsecond-io/astrometry.git@c262930a086025e76839ca1013ed2c199b7c210d ; platform_system == 'Windows'",
+    "astrometry @ git+https://github.com/arcsecond-io/astrometry.git@2f187ee9b54b8bc01c28164d43559700c6eb08aa ; platform_system == 'Windows'",
     "astrometry>=4.3.0 ; platform_system != 'Windows'",
 ]
 
