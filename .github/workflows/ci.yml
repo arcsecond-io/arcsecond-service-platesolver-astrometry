@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["master"]
+
+jobs:
+  build-and-smoke-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install build tooling
+        run: python -m pip install build
+
+      - name: Install project
+        run: python -m pip install .
+
+      - name: Smoke test import and cache path
+        run: python -c "from arcsecond_service_platesolver.main import _resolve_cache_dir; print(_resolve_cache_dir())"
+
+      - name: Build package
+        run: python -m build

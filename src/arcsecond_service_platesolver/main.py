@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 import uvicorn
@@ -18,10 +20,39 @@ _SOLVER: AstrometryServiceSolver | None = None
 
 
 def _resolve_cache_dir() -> str:
-    data_root = os.environ.get("ASTROMETRY_DATA_ROOT", "/data")
-    cache_dir = os.path.join(data_root, "astrometry_cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
+    cache_dir_override = os.environ.get("ASTROMETRY_CACHE_DIR")
+    if cache_dir_override:
+        cache_dir = Path(cache_dir_override)
+    else:
+        data_root_override = os.environ.get("ASTROMETRY_DATA_ROOT")
+        if data_root_override:
+            data_root = Path(data_root_override)
+        elif os.name == "nt":
+            local_appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+            if local_appdata:
+                data_root = Path(local_appdata) / "Arcsecond"
+            else:
+                data_root = Path.home() / "AppData" / "Local" / "Arcsecond"
+        else:
+            default_root = Path("/data")
+            if default_root.exists() and os.access(default_root, os.W_OK):
+                data_root = default_root
+            else:
+                xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+                if xdg_cache_home:
+                    data_root = Path(xdg_cache_home) / "arcsecond"
+                else:
+                    data_root = Path.home() / ".cache" / "arcsecond"
+        cache_dir = data_root / "astrometry_cache"
+
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        cache_dir = Path(tempfile.gettempdir()) / "arcsecond" / "astrometry_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        log.warning("Falling back to temporary cache directory: %s", cache_dir)
+
+    return str(cache_dir)
 
 
 @asynccontextmanager
