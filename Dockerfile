@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml /app/pyproject.toml
 COPY uv.lock /app/uv.lock
+COPY README.md /app/README.md
 
 # Install deps
 RUN uv pip install --system -v -r pyproject.toml
