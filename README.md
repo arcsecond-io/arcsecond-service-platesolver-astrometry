@@ -26,16 +26,18 @@ python -m arcsecond_service_platesolver.main
 1. Install Python 3.12+.
 2. Install Microsoft C++ Build Tools (Desktop development with C++).
 3. Install Rust (`rustup`), because `astrometry` may need a local native build when no matching wheel is available.
+4. Point the compiler include path to the compatibility header shipped in this repo.
 
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
+$env:CL="/I$PWD\compat\windows\include $env:CL"
 python -m pip install --upgrade pip
 python -m pip install .
 python -m arcsecond_service_platesolver.main
 ```
 
-If `pip install .` fails on Windows, the failure is typically in the upstream `astrometry` dependency build chain rather than this service code.
+If install still fails, capture the first compiler error after this shim; there may be additional POSIX headers/macros required by the upstream `astrometry` source build.
 
 ## Configuration
 
