@@ -30,7 +30,7 @@ jobs:
 
       - name: Install project (Windows)
         if: runner.os == 'Windows'
-        run: python -m pip install .
+        run: python -m pip install . -v 2>&1
 
       - name: Install project (non-Windows)
         if: runner.os != 'Windows'
