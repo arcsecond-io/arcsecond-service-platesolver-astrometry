@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import AsyncIterator
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from .models import PlateSolveRequest, PlateSolveResponse
-from .solver import AstrometryServiceSolver
+from .solver import DEFAULT_SERIES_SCALES, AstrometryServiceSolver, SolverConfig
 
 log = logging.getLogger("arcsecond.platesolver")
 
-# Single long-lived solver instance (solve is thread-safe).
+# Single long-lived solver instance, built once at startup. astrometry.Solver.solve() is thread-safe.
 _SOLVER: AstrometryServiceSolver | None = None
 
 
@@ -55,15 +55,50 @@ def _resolve_cache_dir() -> str:
     return str(cache_dir)
 
 
+def _resolve_series_scales() -> dict[str, set[int]]:
+    """Read ARCSECOND_PLATESOLVER_SCALES_<SERIES> env vars, falling back to DEFAULT_SERIES_SCALES.
+
+    Setting a series env var to the empty string skips that series entirely (e.g. to drop the
+    2MASS index files when you only image at high galactic latitude).
+    """
+    resolved: dict[str, set[int]] = {}
+    for series_name, default_scales in DEFAULT_SERIES_SCALES.items():
+        env_key = f"ARCSECOND_PLATESOLVER_SCALES_{series_name}"
+        raw = os.environ.get(env_key)
+        if raw is None:
+            resolved[series_name] = set(default_scales)
+            continue
+        raw = raw.strip()
+        if not raw:
+            # Explicitly empty -> skip this series.
+            resolved[series_name] = set()
+            continue
+        try:
+            resolved[series_name] = {int(s) for s in raw.split(",") if s.strip()}
+        except ValueError as exc:
+            raise ValueError(
+                f"{env_key} must be a comma-separated list of integers (got {raw!r}): {exc}"
+            ) from exc
+    return resolved
+
+
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    global _SOLVER
     cache_dir = _resolve_cache_dir()
+    series_scales = _resolve_series_scales()
+
     log.info("Astrometry cache dir: %s", cache_dir)
+    for series, scales in series_scales.items():
+        log.info("  series_%s scales: %s", series, sorted(scales) if scales else "(disabled)")
+
+    # Build the solver up front. The astrometry package downloads any missing index files into
+    # the cache here — first run can take a while (multi-GB for the default scales).
+    _SOLVER = AstrometryServiceSolver(SolverConfig(cache_dir=cache_dir, series_scales=series_scales))
 
     try:
         yield
     finally:
-        global _SOLVER
         if _SOLVER is not None:
             _SOLVER.close()
             _SOLVER = None
@@ -74,30 +109,18 @@ app = FastAPI(title="Arcsecond Plate Solver (Astrometry)", version="0.1.0", life
 
 @app.get("/health")
 def health():
-    return {"ok": True}
-
-
-def _get_solver(req: PlateSolveRequest) -> AstrometryServiceSolver:
-    global _SOLVER
-
-    cache_dir = _resolve_cache_dir()
-    scales = set(req.scales or [6])
-
-    if _SOLVER is None or _SOLVER.cache_dir != cache_dir or _SOLVER.scales != scales:
-        if _SOLVER is not None:
-            _SOLVER.close()
-        _SOLVER = AstrometryServiceSolver(cache_dir=cache_dir, scales=scales)
-
-    return _SOLVER
+    return {"ok": True, "solver_ready": _SOLVER is not None}
 
 
 @app.post("/platesolve", response_model=PlateSolveResponse)
 def platesolve(req: PlateSolveRequest):
+    if _SOLVER is None:
+        raise HTTPException(status_code=503, detail="Solver not initialised")
+
     if len(req.peaks_xy) < 10:
         return PlateSolveResponse(status="no_match")
 
-    solver = _get_solver(req)
-    res = solver.solve(
+    res = _SOLVER.solve(
         req.peaks_xy,
         ra_deg=req.ra_deg,
         dec_deg=req.dec_deg,

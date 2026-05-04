@@ -7,9 +7,18 @@ from pydantic import BaseModel, Field
 
 class PlateSolveRequest(BaseModel):
     peaks_xy: List[List[float]] = Field(..., description="List of [x, y] star centroids in pixel coordinates.")
-    scales: Optional[List[int]] = Field(default=[6], description="Astrometry index scales to use (e.g. [6]).")
+    # Deprecated: kept for backward compatibility with old clients. Ignored by the server —
+    # the index scales are now configured via ARCSECOND_PLATESOLVER_SCALES_<SERIES> env vars
+    # and a single solver is built once at startup, so per-request scale selection is no longer
+    # meaningful. New clients should omit this field.
+    scales: Optional[List[int]] = Field(
+        default=None,
+        description="DEPRECATED — ignored. Configure scales server-side via env vars.",
+        deprecated=True,
+    )
 
-    # Optional hints (add when you want)
+    # Optional hints — pass them whenever you have any prior pointing or scale information,
+    # they shrink the search space drastically and rescue marginal cases.
     ra_deg: Optional[float] = None
     dec_deg: Optional[float] = None
     radius_deg: Optional[float] = None
