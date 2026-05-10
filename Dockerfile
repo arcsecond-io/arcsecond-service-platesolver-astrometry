@@ -1,8 +1,7 @@
 FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    ASTROMETRY_CACHE_DIR=/data/astrometry
+    PYTHONUNBUFFERED=1
 
 # Build deps (kept generic; prune once you confirm what astrometry needs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,12 +27,6 @@ COPY src/ /app/src/
 # Install plate solver service
 RUN uv pip install --system .
 
-# Pre-download all astrometry index files so the container starts without
-# any network access. This layer is cached independently — code changes above
-# do not invalidate it unless download_indexes.py itself changes.
-COPY download_indexes.py /app/download_indexes.py
-RUN python /app/download_indexes.py
-
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -46,7 +39,13 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app/src /app/src
-COPY --from=builder /data/astrometry /data/astrometry
+
+# Download indexes directly into the final image — avoids holding two copies
+# of 10 GB on disk simultaneously (builder copy + final stage copy).
+# The astrometry package is already present from the COPY above.
+# This layer is cached independently; it only re-runs if download_indexes.py changes.
+COPY download_indexes.py /app/download_indexes.py
+RUN python /app/download_indexes.py
 
 EXPOSE 8900
 
