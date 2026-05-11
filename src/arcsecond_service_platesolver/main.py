@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-import tempfile
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncIterator
 
 import uvicorn
@@ -15,44 +13,13 @@ from .solver import DEFAULT_SERIES_SCALES, AstrometryServiceSolver, SolverConfig
 
 log = logging.getLogger("arcsecond.platesolver")
 
+# Indexes are baked into the image at this fixed path by download_indexes.py.
+# There is intentionally no env-var override: a misconfigured path is how the
+# container ends up downloading 10 GB at startup instead of using what's already there.
+ASTROMETRY_INDEX_DIR = "/opt/astrometry"
+
 # Single long-lived solver instance, built once at startup. astrometry.Solver.solve() is thread-safe.
 _SOLVER: AstrometryServiceSolver | None = None
-
-
-def _resolve_cache_dir() -> str:
-    cache_dir_override = os.environ.get("ASTROMETRY_CACHE_DIR")
-    if cache_dir_override:
-        cache_dir = Path(cache_dir_override)
-    else:
-        data_root_override = os.environ.get("ASTROMETRY_DATA_ROOT")
-        if data_root_override:
-            data_root = Path(data_root_override)
-        elif os.name == "nt":
-            local_appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
-            if local_appdata:
-                data_root = Path(local_appdata) / "Arcsecond"
-            else:
-                data_root = Path.home() / "AppData" / "Local" / "Arcsecond"
-        else:
-            default_root = Path("/data")
-            if default_root.exists() and os.access(default_root, os.W_OK):
-                data_root = default_root
-            else:
-                xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
-                if xdg_cache_home:
-                    data_root = Path(xdg_cache_home) / "arcsecond"
-                else:
-                    data_root = Path.home() / ".cache" / "arcsecond"
-        cache_dir = data_root / "astrometry_cache"
-
-    try:
-        cache_dir.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        cache_dir = Path(tempfile.gettempdir()) / "arcsecond" / "astrometry_cache"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        log.warning("Falling back to temporary cache directory: %s", cache_dir)
-
-    return str(cache_dir)
 
 
 def _resolve_series_scales() -> dict[str, set[int]]:
@@ -85,16 +52,13 @@ def _resolve_series_scales() -> dict[str, set[int]]:
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     global _SOLVER
-    cache_dir = _resolve_cache_dir()
     series_scales = _resolve_series_scales()
 
-    log.info("Astrometry cache dir: %s", cache_dir)
+    log.info("Astrometry index dir: %s", ASTROMETRY_INDEX_DIR)
     for series, scales in series_scales.items():
         log.info("  series_%s scales: %s", series, sorted(scales) if scales else "(disabled)")
 
-    # Build the solver up front. The astrometry package downloads any missing index files into
-    # the cache here — first run can take a while (multi-GB for the default scales).
-    _SOLVER = AstrometryServiceSolver(SolverConfig(cache_dir=cache_dir, series_scales=series_scales))
+    _SOLVER = AstrometryServiceSolver(SolverConfig(cache_dir=ASTROMETRY_INDEX_DIR, series_scales=series_scales))
 
     try:
         yield

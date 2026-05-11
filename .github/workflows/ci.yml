@@ -37,8 +37,8 @@ jobs:
         if: runner.os != 'Windows'
         run: python -m pip install .
 
-      - name: Smoke test import and cache path
-        run: python -c "from arcsecond_service_platesolver.main import _resolve_cache_dir; print(_resolve_cache_dir())"
+      - name: Smoke test import
+        run: python -c "from arcsecond_service_platesolver.main import ASTROMETRY_INDEX_DIR; print('Index dir:', ASTROMETRY_INDEX_DIR)"
 
       - name: Build package
         run: python -m build

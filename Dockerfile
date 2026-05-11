@@ -30,8 +30,7 @@ RUN uv pip install --system .
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    ASTROMETRY_CACHE_DIR=/opt/astrometry
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
