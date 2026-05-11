@@ -4,12 +4,14 @@ This repository provides a FastAPI plate-solving service for Arcsecond, based
 on [astrometry.net](https://astrometry.net) indexes and Neuromorphics
 Systems' [astrometry](https://github.com/neuromorphicsystems/astrometry) Python package.
 
+Astrometry index files (~10 GB) are baked into the Docker image at build time
+under `/opt/astrometry`. No downloads occur at container startup.
+
 ## Run with Docker
 
 ```bash
 docker run --rm \
   -p 127.0.0.1:8900:8900 \
-  -v arcsecond_astrometry_cache:/data/astrometry \
   arcsecond-service-platesolver-astrometry:latest
 ```
 
@@ -40,16 +42,9 @@ python -m arcsecond_service_platesolver.main
 
 ## Configuration
 
-- `ASTROMETRY_CACHE_DIR`: explicit cache directory path (highest priority).
-- `ASTROMETRY_DATA_ROOT`: root directory used to create `astrometry_cache` under it.
 - `HOST`: bind host (default `0.0.0.0`).
 - `PORT`: bind port (default `8900`).
 - `LOG_LEVEL`: Uvicorn log level (default `info`).
-
-Default cache path behavior:
-
-- If `ASTROMETRY_CACHE_DIR` is set, it is used directly.
-- On Windows, defaults to `%LOCALAPPDATA%\Arcsecond\astrometry_cache` (or `%APPDATA%` fallback).
-- On Unix-like systems, prefers `/data/astrometry_cache` when writable, otherwise falls back to
-  `$XDG_CACHE_HOME/arcsecond/astrometry_cache` or `~/.cache/arcsecond/astrometry_cache`.
-- If the selected location is not writable, falls back to the OS temp directory.
+- `ARCSECOND_PLATESOLVER_SCALES_5200`: comma-separated scale numbers for the 5200 series (default `2,3,4,5,6`).
+- `ARCSECOND_PLATESOLVER_SCALES_4100`: comma-separated scale numbers for the 4100 series (default `7,8,9,10,11`).
+- `ARCSECOND_PLATESOLVER_SCALES_4200`: comma-separated scale numbers for the 4200 series (default `6,7,8`). Set to empty string to disable a series entirely.
