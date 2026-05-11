@@ -31,7 +31,7 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    ASTROMETRY_CACHE_DIR=/data/astrometry
+    ASTROMETRY_CACHE_DIR=/opt/astrometry
 
 WORKDIR /app
 
