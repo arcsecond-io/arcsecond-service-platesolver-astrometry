@@ -10,8 +10,9 @@ from typing import AsyncIterator
 import uvicorn
 from fastapi import FastAPI, HTTPException
 
+from .deadline import DeadlineSolver, SolveDeadlineExceeded, resolve_deadline_seconds
 from .models import PlateSolveRequest, PlateSolveResponse
-from .solver import DEFAULT_SERIES_SCALES, AstrometryServiceSolver, SolverConfig
+from .solver import DEFAULT_SERIES_SCALES, SolverConfig
 
 log = logging.getLogger("arcsecond.platesolver")
 
@@ -20,8 +21,9 @@ log = logging.getLogger("arcsecond.platesolver")
 # container ends up downloading 10 GB at startup instead of using what's already there.
 ASTROMETRY_INDEX_DIR = "/opt/astrometry"
 
-# Single long-lived solver instance, built once at startup. astrometry.Solver.solve() is thread-safe.
-_SOLVER: AstrometryServiceSolver | None = None
+# Single long-lived solver, built once at startup. It owns a worker process so that a solve
+# can be given a wall-clock deadline — see deadline.py for why nothing in-process can do that.
+_SOLVER: DeadlineSolver | None = None
 
 
 def _configure_logging() -> None:
@@ -86,7 +88,17 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     for series, scales in series_scales.items():
         log.info("startup: series_%s scales = %s", series, sorted(scales) if scales else "(disabled)")
 
-    _SOLVER = AstrometryServiceSolver(SolverConfig(cache_dir=ASTROMETRY_INDEX_DIR, series_scales=series_scales))
+    deadline_seconds = resolve_deadline_seconds()
+    log.info(
+        "startup: solve deadline = %s",
+        f"{deadline_seconds:.0f}s" if deadline_seconds else "(disabled)",
+    )
+
+    _SOLVER = DeadlineSolver(
+        SolverConfig(cache_dir=ASTROMETRY_INDEX_DIR, series_scales=series_scales),
+        deadline_seconds=deadline_seconds,
+    )
+    _SOLVER.start()
     log.info("startup: solver ready")
 
     try:
@@ -139,7 +151,7 @@ def platesolve(req: PlateSolveRequest):
       `request  <summary>`           — one line per incoming POST
       `result   match    …`          — one line per successful solve, with elapsed time
       `result   no_match reason=…`   — one line per failed solve, with the reason category
-                                       (peaks_too_few / solver_no_match / solver_returned_none)
+                                       (peaks_too_few / solver_no_match / deadline)
     The match line includes the solved RA/Dec/scale so a `grep result.*match` in
     the docker logs gives a usable per-call audit trail.
     """
@@ -165,6 +177,13 @@ def platesolve(req: PlateSolveRequest):
             lower_arcsec_per_pixel=req.lower_arcsec_per_pixel,
             upper_arcsec_per_pixel=req.upper_arcsec_per_pixel,
         )
+    except SolveDeadlineExceeded as exc:
+        elapsed_ms = (time.monotonic() - started) * 1000.0
+        # Deliberately a no_match rather than a 500: the client already handles no_match as
+        # "centering could not be solved, try another frame", whereas a 5xx is reported to the
+        # observer as a service fault. Running out of time on a hopeless field is neither.
+        log.warning("result   no_match elapsed=%.1fms reason=deadline (%s)", elapsed_ms, exc)
+        return PlateSolveResponse(status="no_match")
     except Exception:
         elapsed_ms = (time.monotonic() - started) * 1000.0
         # The traceback is the diagnostic value here — emit the full one at ERROR

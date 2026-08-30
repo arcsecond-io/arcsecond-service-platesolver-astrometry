@@ -48,3 +48,17 @@ python -m arcsecond_service_platesolver.main
 - `ARCSECOND_PLATESOLVER_SCALES_5200`: comma-separated scale numbers for the 5200 series (default `2,3,4,5,6`).
 - `ARCSECOND_PLATESOLVER_SCALES_4100`: comma-separated scale numbers for the 4100 series (default `7,8,9,10,11`).
 - `ARCSECOND_PLATESOLVER_SCALES_4200`: comma-separated scale numbers for the 4200 series (default `6,7,8`). Set to empty string to disable a series entirely.
+- `ARCSECOND_PLATESOLVER_SOLVE_DEADLINE_SECONDS`: wall-clock ceiling on a single solve (default `50`). Set to `0` or an empty string to disable. Keep it below the calling client's HTTP timeout (the Arcsecond backend uses 60s) so a hopeless field returns a clean `no_match` instead of timing out the connection.
+
+### Solve deadline
+
+A blind or badly-hinted solve can run indefinitely: `astrometry` has no timeout parameter, and
+its only early-exit hook (`logodds_callback`) fires when a match is *found* — a hopeless 50-star
+field was measured running 70s while calling it zero times. The service therefore runs solves in
+a dedicated worker process and kills it when the deadline passes, which is the only mechanism
+that actually bounds the C solver. The request then returns `{"status": "no_match"}` and logs
+`reason=deadline`. The worker is respawned on the next request (~0.7s cold start against the
+full index set, since indexes are mmapped rather than read).
+
+One consequence: solves are serialised. A solve is CPU-bound, and single-flight keeps the kill
+unambiguous — it can never destroy a concurrent request's in-flight solve.
