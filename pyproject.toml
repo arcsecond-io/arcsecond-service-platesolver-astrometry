@@ -25,6 +25,17 @@ arcsecond-platesolver = "arcsecond_service_platesolver.main:run"
 Homepage = "https://github.com/arcsecond-io/arcsecond-service-platesolver-astrometry"
 Issues = "https://github.com/arcsecond-io/arcsecond-service-platesolver-astrometry/issues"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `spawn` workers re-import the test module, so keep import mode default (prepend) and rely on
+# tests/__init__.py making `tests.stubs` resolvable in the child process.
+addopts = "-q"
+
 [tool.uv]
 package = true
 

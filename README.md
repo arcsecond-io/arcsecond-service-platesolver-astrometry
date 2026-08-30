@@ -40,6 +40,17 @@ python -m pip install .
 python -m arcsecond_service_platesolver.main
 ```
 
+## Tests
+
+```
+uv sync --group dev
+uv run pytest
+```
+
+The suite stubs the solver out entirely, so it needs no index files and runs in ~10s. It covers
+the deadline machinery (breach, worker kill, respawn, repeated breaches, serialisation) and the
+`/platesolve` response contract.
+
 ## Configuration
 
 - `HOST`: bind host (default `0.0.0.0`).

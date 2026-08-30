@@ -40,14 +40,14 @@ class SolveDeadlineExceeded(RuntimeError):
     pass
 
 
-def _worker(conn: Connection, config: SolverConfig) -> None:
+def _worker(conn: Connection, config: SolverConfig, solver_factory) -> None:
     """Own the astrometry solver and answer solve requests one at a time, forever.
 
     Runs in a separate process for exactly one reason: this is the only way to abort a solve.
     `Solver.solve()` is a single call into a C extension with no timeout parameter and no
-    cancellation point we can reach — see the module docstring note in `_DeadlineSolver`.
+    cancellation point we can reach — see the class docstring on `DeadlineSolver`.
     """
-    solver = AstrometryServiceSolver(config)
+    solver = solver_factory(config)
     conn.send(("ready", None))
     try:
         while True:
@@ -83,9 +83,18 @@ class DeadlineSolver:
     set, since the index files are mmapped rather than read.
     """
 
-    def __init__(self, config: SolverConfig, deadline_seconds: float | None):
+    def __init__(
+            self,
+            config: SolverConfig,
+            deadline_seconds: float | None,
+            solver_factory=AstrometryServiceSolver,
+    ):
         self._config = config
         self._deadline_seconds = deadline_seconds
+        # Injectable so the tests can exercise the deadline machinery against a stub solver
+        # instead of the 10 GB index set. Must be picklable (a module-level class or function),
+        # since `spawn` sends it to the worker.
+        self._solver_factory = solver_factory
         # `spawn` rather than `fork`: the parent holds a C solver with mmapped index files, and
         # forking that mid-flight would hand the child an inconsistent copy of any internal lock.
         self._ctx = mp.get_context("spawn")
@@ -104,23 +113,36 @@ class DeadlineSolver:
         self._teardown_worker()
 
         parent_conn, child_conn = self._ctx.Pipe()
-        proc = self._ctx.Process(target=_worker, args=(child_conn, self._config), daemon=True)
+        proc = self._ctx.Process(
+            target=_worker,
+            args=(child_conn, self._config, self._solver_factory),
+            daemon=True,
+        )
         proc.start()
         child_conn.close()
 
         # The worker signals readiness only after its indexes are loaded. Failing to build the
-        # solver is fatal and must not be silently retried on every request.
-        if not parent_conn.poll(120.0):
-            proc.kill()
+        # solver is fatal and must not be silently retried on every request. A worker that dies
+        # in its constructor closes the pipe instead of answering, which surfaces as EOF on
+        # recv() — report that as the startup failure it is rather than leaking an EOFError.
+        ready = False
+        detail = "timed out after 120s"
+        try:
+            if parent_conn.poll(120.0):
+                status, payload = parent_conn.recv()
+                ready = status == "ready"
+                detail = payload
+        except EOFError:
+            detail = "worker exited before signalling readiness"
+
+        if not ready:
+            if proc.is_alive():
+                proc.kill()
             proc.join()
             parent_conn.close()
-            raise RuntimeError("Plate solver worker did not become ready within 120s")
-        status, payload = parent_conn.recv()
-        if status != "ready":
-            proc.kill()
-            proc.join()
-            parent_conn.close()
-            raise RuntimeError(f"Plate solver worker failed to start: {payload}")
+            raise RuntimeError(
+                f"Plate solver worker failed to start: {detail} (exit code {proc.exitcode})"
+            )
 
         self._proc = proc
         self._conn = parent_conn
