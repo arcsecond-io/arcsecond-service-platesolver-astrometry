@@ -61,6 +61,16 @@ the deadline machinery (breach, worker kill, respawn, repeated breaches, seriali
 - `ARCSECOND_PLATESOLVER_SCALES_4200`: comma-separated scale numbers for the 4200 series (default `6,7,8`). Set to empty string to disable a series entirely.
 - `ARCSECOND_PLATESOLVER_SOLVE_DEADLINE_SECONDS`: wall-clock ceiling on a single solve (default `50`). Set to `0` or an empty string to disable. Keep it below the calling client's HTTP timeout (the Arcsecond backend uses 60s) so a hopeless field returns a clean `no_match` instead of timing out the connection.
 
+### Why solves are fast
+
+The solver stops at the first accepted match. By default `astrometry` keeps combing the search
+cone after it already has a solution and SIP-fits every further match it accepts, which makes a
+rich, well-exposed frame *slower* than a poor one — measured on a clean 50-star field, 169
+matches in 40.0s versus 0.23s to stop at the first, for the same centre and scale to five
+decimals. That, not pointing error, is what made real solves take 37-47s; a 2 deg pointing
+offset only moved a 39.9s solve to 39.1s. Stopping early is safe because a match is only
+accepted above odds of 1e9 to 1, and it is what astrometry.net's own solve-field does.
+
 ### Solve deadline
 
 A blind or badly-hinted solve can run indefinitely: `astrometry` has no timeout parameter, and

@@ -92,7 +92,21 @@ class AstrometryServiceSolver:
             stars=list(peaks_xy),
             size_hint=size_hint,
             position_hint=position_hint,
-            solution_parameters=astrometry.SolutionParameters(),
+            solution_parameters=astrometry.SolutionParameters(
+                # Return the first solution instead of combing the rest of the search cone for
+                # more. By default the solver keeps going after it has the answer and tunes up
+                # (SIP-fits) every further match it accepts, so a rich, well-exposed field is
+                # *slower* than a poor one: a clean 50-star frame measured here accumulated 169
+                # matches in 40.0s, against 0.23s to stop at the first — same centre and scale
+                # to five decimals. That is the real source of the 37s and 47s solves seen in
+                # the field; pointing error costs almost nothing by comparison (a 2 deg offset
+                # moved a 39.9s solve to 39.1s).
+                #
+                # Safe because a match is only accepted above output_logodds_threshold (21, i.e.
+                # odds of 1e9 to 1), and stopping at the first acceptance is what astrometry.net
+                # own solve-field does.
+                logodds_callback=lambda _: astrometry.Action.STOP,
+            ),
         )
 
         if not sol or not sol.has_match():
