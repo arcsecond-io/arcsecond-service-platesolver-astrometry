@@ -48,7 +48,7 @@ wheels = [
 
 [[package]]
 name = "arcsecond-service-platesolver-astrometry"
-version = "1.3.0"
+version = "1.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "arcsecond-astrometry", marker = "sys_platform == 'win32'" },
