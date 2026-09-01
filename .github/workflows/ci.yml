@@ -8,7 +8,7 @@ on:
     tags: ["v*"]
 
 jobs:
-  build-and-smoke-test:
+  test-and-build:
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +27,7 @@ jobs:
         run: python -m pip install --upgrade pip
 
       - name: Install build tooling
-        run: python -m pip install build
+        run: python -m pip install build pytest
 
       - name: Install project (Windows)
         if: runner.os == 'Windows'
@@ -37,12 +37,18 @@ jobs:
         if: runner.os != 'Windows'
         run: python -m pip install .
 
+      # The suite stubs the solver out, so it needs none of the 10 GB of index files. Running it
+      # on both runners is deliberate: the solve deadline works by killing a worker process, and
+      # `spawn` semantics are the part most likely to differ between Linux and Windows.
+      - name: Run tests
+        run: python -m pytest
+
       - name: Build package
         run: python -m build
 
   docker-publish:
     runs-on: ubuntu-latest
-    needs: build-and-smoke-test
+    needs: test-and-build
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
